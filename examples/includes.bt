@@ -1,0 +1,7 @@
+set a to 10
+
+while $a > 0
+    sansText $a
+
+    change a by -1
+end
