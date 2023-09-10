@@ -1,9 +1,3 @@
-0,SET,0_a,10,
-0,JMPG,4,$0_a,0
-0,SET,MATH_1,1,
-0,JMPREL,2,,
-0,SET,MATH_1,0,
-0,JMPNZ,10,$MATH_1,
-0,SansText,$0_a,,
-0,ADD,0_a,$0_a,-1
-0,JMPABS,2,,
+0,JMPREL,3
+SansText,,
+0,JMPABS,$JB_0_main
