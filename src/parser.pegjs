@@ -3,6 +3,14 @@
 //
 // Accepts expressions like "2 * (3 + 4)" and computes their value.
 
+
+Multiple
+  = stuff:((_)? Factor (_? "\n" _?)*)+ {
+	return {
+    	multiple: stuff.map(item => item[1])
+    }
+  }
+
 Comparison
   = head:Expression tail:(_ ("==" / ">" / "<" / ">=" / "<=" / "!=") _ Term)* {
       return tail.reduce(function(result, element) {
@@ -44,7 +52,7 @@ Term
 
 String
   = '"' [^"]* '"' {
-    return JSON.parse(text())
+    return { string: JSON.parse(text()) }
   }
 
     
@@ -67,10 +75,30 @@ SetStatment
   }
 
 SingleStatment
-  = keyword:("nonlocal" / "include") _ vari:Word {
+  = keyword:("nonlocal") _ vari:Word {
     return {
       keyword: keyword,
       args: [vari]
+    }
+  }
+  / "include" _ name:(Word/String) {
+	return {
+      keyword: "include",
+      args: [name]
+    }
+  }
+
+ReturnStatment
+  = keyword:"return" _ vari:Comparison {
+    return {
+      keyword: "return",
+      args: [vari]
+    }
+  }
+  / "include" _ name:(Word/String) {
+	return {
+      keyword: "include",
+      args: [name]
     }
   }
   
@@ -86,12 +114,12 @@ Keyword
   = keyword:Word _ args:(((Comparison / Factor) _ )*) {
     return {
       keyword: keyword,
-      args: args.map(item=>item[0][0])
+      args: args.map(item=>item[0])
     }
   }
   
 FunctionCall
-  = vari:Variable "(" args:(_ Factor _ ","?)* ")" { return {
+  = vari:Variable "(" args:(_? Factor _? ","? _?)* ")" { return {
   call: vari,
   args: args.map(item=>item[1])
   } }
@@ -102,9 +130,9 @@ Integer "integer"
   } }
 Factor
   = "(" _ expr:Comparison _ ")" { return expr; }
-  / Variable / String / FuncStatement / SingleStatment / ChangeStatment / SetStatment / Keyword / FunctionCall / Integer
+  / ReturnStatment / String / FuncStatement / SingleStatment / ChangeStatment / SetStatment / Keyword / FunctionCall / Integer  / Variable
 
 _ "whitespace"
-  = [ \t\n\r]*
+  = [ \t\r]*
 
 Word = [a-zA-Z_-][a-zA-Z_\-0-9.]* { return text() }

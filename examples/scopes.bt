@@ -1,0 +1,6 @@
+set a to 0
+
+func main
+    nonlocal a
+    set a to 1
+end

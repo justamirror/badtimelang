@@ -31,7 +31,7 @@ if (args.reload) {
 
   parseExp = eval(stuff);
 } else {
-  parseExp = await import("./parser.js");
+  parseExp = (await import("./parser.js")).default;
 }
 
 const __filename = path.fromFileUrl(import.meta.url);
@@ -65,6 +65,9 @@ class BT {
     this.#linenumber = 0;
   }
   get(variable, scope, set = false) {
+    if (this.#scopes[scope] === void 0) {
+      this.#scopes[scope] = {}
+    }
     if (set) {
       if (this.#scopes[scope][variable] === void 0) {
         this.#scopes[scope][variable] = SCOPE_TYPES.AUTO;
@@ -152,6 +155,7 @@ class BT {
         "func",
         "end",
         "change",
+        "return"
       ].includes(command))
     ) {
       throw Error("Unknown command "+command)
@@ -187,13 +191,11 @@ class BT {
     if (command === "include") {
       const textDecoder = new TextDecoder("utf-8");
       let filename = args[0];
-      console.log(filename)
       if (!filename.endsWith(".bt")) {
         filename = `${__dirname}/../std/${filename}.bt`;
       } else if (this.filename !== void 0) {
         filename = path.resolve(path.dirname(this.filename), filename)
       }
-      console.log(filename)
       const varname = v(path.basename(filename, ".bt"));
       await this.compile(textDecoder.decode(await Deno.readFile(filename)));
       this.#imports[varname] = this.prefix - 1;
@@ -224,9 +226,29 @@ class BT {
         type: "func",
         stuff: [],
         name: args[0],
-        args: args.slice(1).map((item) => v(item, args[2])),
+        args: args.slice(1).map((item) => v(item, args[0], true)),
         asString: `func ${args.join(' ')}`,
+        ind: this.#linenumber + 2
       });
+      return;
+    }
+
+    if (command === "return") {
+      let func_scope;
+      for (let i = this.#stack.length - 1; i >= 0; i--) {
+        if (this.#stack[i]?.type === "func") {
+          func_scope = this.#stack[i];
+          break;
+        }
+      }
+
+      if (func_scope === void 0) {
+        throw Error('Cannot use return outside of a function.')
+      }
+
+      this.pushState(["0", "SET", `RETURN_${func_scope.name}`, args[0]]);
+      this.pushState(["0", "JMPABS", `$JB_${func_scope.name}`]);
+
       return;
     }
 
@@ -235,14 +257,13 @@ class BT {
         const obj = this.#stack.pop();
 
         if (obj.type === "func") {
-          const { name: f, stuff, args: a, asString } = obj;
+          const { name: f, stuff, args: a, asString, ind } = obj;
 
-          this.pushState(["0", "JMPREL", String(stuff.length + 2)]);
-
-          const ind = this.#linenumber + 1;
+          this.pushState(["0", "JMPREL", String(stuff.length + 3)]);
 
           for (const item of stuff) this.pushState(item);
 
+          this.pushState(["0", "SET", `RETURN_${f}`, "0"]);
           this.pushState(["0", "JMPABS", `$JB_${f}`]);
 
           this.#functions[f] = {
@@ -272,7 +293,7 @@ class BT {
 
     command = `${command[0].toUpperCase()}${command.slice(1)}`;
 
-    this.pushState([command, ...args]);
+    this.pushState(["0", command, ...args]);
   }
 
   to(file) {
@@ -316,26 +337,40 @@ class BT {
 
     return obj;
   }
-  compile(code, prefix = String(this.prefix++)) {
-    console.log(code)
-    return code.split("\n").map(code => {
-      console.log(parseExp.parse(code.trim()));
-      return this._compile(parseExp.parse(code.trim()), prefix)
-    }, prefix, true)
+  async compile(code, prefix = String(this.prefix++)) {
+    try {
+      const stuff = parseExp.parse(code);
+      return await this._compile(stuff, prefix, true)
+    } catch (e) {
+      if (e.location === void 0) throw e;
+      e = new e.constructor(`[${this.filename}:ln${e.location.start.line}:column${e.location.start.column}] ${e.message}`);
+
+      throw e
+    }
   }
-  _compile(node, prefix = String(this.prefix++), topLevel=false) {
+  async _compile(node, prefix = String(this.prefix++), topLevel=false) {
+    if (node.multiple) {
+      let value;
+      for (let thing of node.multiple) {
+        value = await this._compile(thing, prefix, topLevel)
+      }
+      return value
+    }
     if (this.#stack.length && this.#stack[this.#stack.length - 1].name) {
       prefix = this.#stack[this.#stack.length - 1].name;
     }
     if (this.#scopes[prefix] === void 0) this.#scopes[prefix] = {};
-    if (typeof node === "string") {
-      return node;
+    if (typeof node === "string" || node.string) {
+      if (node.string && node.string.includes(',')) {
+        throw Error("String literals cannot contain commas due to limitations of the CSV parser of sans battle simulator.")
+      }
+      return node.string || node;
     }
     if (node === void 0) return;
     if (node.keyword) {
-      const value = this.handleKeyword(prefix, node.keyword, ...node.args.map(obj => this._compile(obj, prefix)));
+      const value = await this.handleKeyword(prefix, node.keyword, ...(await this._compilea(node.args, prefix)));
       if (!topLevel && value === void 0) {
-        throw Error("Statement" + node.keyword + "CANNOT be an input")
+        throw Error("Statement " + node.keyword + " CANNOT be an input")
       }
       return value;
     }
@@ -346,7 +381,7 @@ class BT {
         if (this.#functions[node.literal.slice(1)] === void 0 && ['floor','degrees','radians','sin','cosin','angle','random'].includes(node.literal.slice(1))) {
           return "Builtin func "+(node.literal.slice(1))
         }
-        node.literal = `$${this.get(node.literal.slice(1), prefix)}`
+        node.literal = `$${this.get(node.literal.slice(1), prefix)}`;
       }
       if (
         node.literal.startsWith("$") && this.#functions[node.literal.slice(1)]
@@ -372,8 +407,8 @@ class BT {
           ? "MOD"
           : "???",
         varname,
-        this._compile(node.first, prefix),
-        this._compile(node.second, prefix),
+        await this._compile(node.first, prefix),
+        await this._compile(node.second, prefix),
       ]);
     } else if (["<=", "==", "!=", ">=", "<", ">"].includes(node.operator)) {
       const jump = this.#linenumber + 3;
@@ -383,43 +418,43 @@ class BT {
         command = [
           "JMPE",
           null,
-          this._compile(node.first, prefix),
-          this._compile(node.second, prefix),
+          await this._compile(node.first, prefix),
+          await this._compile(node.second, prefix),
         ];
       } else if (op == "!=") {
         command = [
           "JMPNE",
           null,
-          this._compile(node.first, prefix),
-          this._compile(node.second, prefix),
+          await this._compile(node.first, prefix),
+          await this._compile(node.second, prefix),
         ];
       } else if (op == "<") {
         command = [
           "JMPL",
           null,
-          this._compile(node.first, prefix),
-          this._compile(node.second, prefix),
+          await this._compile(node.first, prefix),
+          await this._compile(node.second, prefix),
         ];
       } else if (op == ">=") {
         command = [
           "JMPNL",
           null,
-          this._compile(node.first, prefix),
-          this._compile(node.second, prefix),
+          await this._compile(node.first, prefix),
+          await this._compile(node.second, prefix),
         ];
       } else if (op == ">") {
         command = [
           "JMPG",
           null,
-          this._compile(node.first, prefix),
-          this._compile(node.second, prefix),
+          await this._compile(node.first, prefix),
+          await this._compile(node.second, prefix),
         ];
       } else if (op == "<=") {
         command = [
           "JMPNG",
           null,
-          this._compile(node.first, prefix),
-          this._compile(node.second, prefix),
+          await this._compile(node.first, prefix),
+          await this._compile(node.second, prefix),
         ];
       }
       command[1] = jump;
@@ -428,9 +463,9 @@ class BT {
       this.pushState(["0", "JMPREL", "2"]);
       this.pushState(["0", "SET", varname, "0"]);
     } else if (node.call) {
-      let call = node.call.literal.slice(1)
-      const a = node.args.map((arg) => this._compile(arg, prefix));
-      if (this.#functions[call] === void 0) {
+      let call = node.call.literal.slice(1);
+      const a = await this._compilea(node.args, prefix);
+      if (this.#functions[this.get(call, prefix)] === void 0) {
         if (call === 'floor') {
           this.pushState(["0", "FLOOR", varname, a[0]]);
           return `$${varname}`
@@ -482,13 +517,20 @@ class BT {
         "0",
         "SET",
         `JB_${call}`,
-        String(this.#linenumber + 3),
+        String(this.#linenumber),
       ]);
       this.pushState(["0", "JMPABS", this.#functions[call].ind]);
-      return 0;
+      return `$RETURN_${call}`;
     }
 
     return `$${varname}`;
+  }
+  async _compilea(stuff, prefix, topLevel) {
+    const a = [];
+    for (let thing of stuff) {
+      a.push(await this._compile(thing, prefix, topLevel))
+    }
+    return a
   }
 }
 

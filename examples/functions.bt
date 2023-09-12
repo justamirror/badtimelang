@@ -1,0 +1,6 @@
+func main a b c
+    sansText $a
+    return $b
+end
+
+sansText $main("HEY NERD", "BERD") 

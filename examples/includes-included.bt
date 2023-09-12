@@ -1,3 +1,0 @@
-func main a b c
-    sansText $a
-end
