@@ -16,7 +16,7 @@ Why though?
 
 ## Ok, but how do I *use* it? \[Install and Getting Started\]
 
-To install badtimelang, clone this repo. Then you need deno installed. To do that, check [Installation | Manual | Deno](https://deno.land/manual@v1.36.4/getting_started/installation). Finally you can use (assuming you are in the install directory) `deno install badtime --allow-read --allow-write`.
+To install badtimelang, you need deno installed. To do that, check [Installation | Manual | Deno](https://deno.land/manual@v1.36.4/getting_started/installation). Finally you can use (assuming you are in the install directory) `deno install https://deno.land/x/badtime/src/index.js -n badtime --allow-all`.
 
 To compile a file, use `badtime --compile file.bt`.
 
