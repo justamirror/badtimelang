@@ -1,1 +1,3 @@
 include "functions.bt"
+
+sansText $functions.main

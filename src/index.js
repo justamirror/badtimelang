@@ -166,7 +166,10 @@ class BT {
       return;
     }
 
+    let named;
+
     if (["func", "set", "change"].includes(command)) {
+      named = args[0];
       args[0] = v(args[0], prefix, true);
     }
 
@@ -227,7 +230,7 @@ class BT {
         stuff: [],
         name: args[0],
         args: args.slice(1).map((item) => v(item, args[0], true)),
-        asString: `func ${args.join(' ')}`,
+        asString: `func ${named} ${args.slice(1).join(' ')}`,
         ind: this.#linenumber + 2
       });
       return;
@@ -378,10 +381,18 @@ class BT {
       if (
         node.literal.startsWith("$")
       ) {
-        if (this.#functions[node.literal.slice(1)] === void 0 && ['floor','degrees','radians','sin','cosin','angle','random'].includes(node.literal.slice(1))) {
-          return "Builtin func "+(node.literal.slice(1))
+        let call = node.literal;
+        if (node.literal.includes(".")) {
+          const [i, vn] = node.literal.slice(1).split(".");
+  
+          node.literal = this.get(vn, i);
+        } else {
+          node.literal = this.get(node.literal.slice(1), prefix)
         }
-        node.literal = `$${this.get(node.literal.slice(1), prefix)}`;
+        node.literal = `$${node.literal}`;
+        if (this.#functions[node.literal.slice(1)] === void 0 && ['floor','degrees','radians','sin','cosin','angle','random'].includes(call.slice(1))) {
+          return "Builtin func "+(call.slice(1))
+        }
       }
       if (
         node.literal.startsWith("$") && this.#functions[node.literal.slice(1)]
@@ -497,12 +508,12 @@ class BT {
         throw Error("Unknown function "+call)
       }
 
-      call = this.get(call, prefix)
-
       if (call.includes(".")) {
         const [i, vn] = call.split(".");
 
-        call = `${this.#imports[i]}_${vn}`;
+        call = this.get(vn, i);
+      } else {
+        call = this.get(call, prefix)
       }
 
       for (
