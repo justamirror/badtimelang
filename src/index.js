@@ -74,7 +74,6 @@ class BT {
       }
     }
     const keys = Object.keys(this.#scopes);
-    console.log(keys, scope)
     const values = Object.values(this.#scopes);
 
     for (let i = keys.indexOf(scope); i >= 0; i--) {
@@ -481,7 +480,6 @@ class BT {
 
       if (call.includes(".")) {
         const [i, vn] = call.split("."); 
-        console.log(i, vn)
         call = this.get(vn, this.#imports[this.get(i, prefix)]);
       } else {
         call = this.get(call, prefix)
