@@ -5,7 +5,7 @@
 
 
 Multiple
-  = stuff:((_)? Factor (_? "\n" _?)*)+ {
+  = stuff:((_)? Comparison (_? "\n" _?)*)+ {
 	return {
     	multiple: stuff.map(item => item[1])
     }
@@ -16,8 +16,8 @@ Comparison
       return tail.reduce(function(result, element) {
         return {
         	operator: element[1],
-            first: result,
-            second: element[3]
+          first: result,
+          second: element[3]
         }
       }, head);
     }
@@ -51,8 +51,10 @@ Term
     }
 
 String
-  = '"' [^"]* '"' {
+  = '"' ([\\]'"'/[^"\n])* '"' {
     return { string: JSON.parse(text()) }
+  } / "'" ([\\]"'"/[^'\n])* "'" {
+    return { string: JSON.parse(`"${text().slice(1, -1).replaceAll('"', '\\"')}"`) }
   }
 
     
@@ -67,7 +69,7 @@ FuncStatement
 EndStatement = "end" { return { keyword: 'end', args: [] } }
 
 SetStatment
-  = keyword:"set" _ vari:Word _ "to" _ value:Factor {
+  = keyword:"set" _ vari:Word _ "to" _ value:Comparison {
     return {
       keyword: "set",
       args: [vari, value]
@@ -103,7 +105,7 @@ ReturnStatment
   }
   
 ChangeStatment
-  = "change" _ vari:Word _ "by" _ value:Factor {
+  = "change" _ vari:Word _ "by" _ value:Comparison {
     return {
       keyword: 'change',
       args: [vari, value]
@@ -130,7 +132,7 @@ Integer "integer"
   } }
 Factor
   = "(" _ expr:Comparison _ ")" { return expr; }
-  / ReturnStatment / String / FuncStatement / SingleStatment / ChangeStatment / SetStatment / Keyword / FunctionCall / Integer  / Variable
+  / ReturnStatment / String / FuncStatement / SingleStatment / ChangeStatment / SetStatment / Keyword / FunctionCall / Integer / Variable
 
 _ "whitespace"
   = [ \t\r]*

@@ -3,4 +3,6 @@ func main a b c
     return $b
 end
 
-sansText $main("HEY NERD", "BERD") 
+set a to 1
+
+sansText $main("HEY NE\"RD", "BERD") 

@@ -74,9 +74,11 @@ class BT {
       }
     }
     const keys = Object.keys(this.#scopes);
+    console.log(keys, scope)
     const values = Object.values(this.#scopes);
 
     for (let i = keys.indexOf(scope); i >= 0; i--) {
+      if (keys[i].startsWith(scope+"_")) continue;
       const thing = values[i][variable];
       if (thing === void 0 || thing === SCOPE_TYPES.NONLOCAL) {
         continue;
@@ -199,9 +201,10 @@ class BT {
       } else if (this.filename !== void 0) {
         filename = path.resolve(path.dirname(this.filename), filename)
       }
-      const varname = v(path.basename(filename, ".bt"));
+      const varname = v(path.basename(filename, ".bt"), prefix, true);
+      let pp = this.prefix + 1;
       await this.compile(textDecoder.decode(await Deno.readFile(filename)));
-      this.#imports[varname] = this.prefix - 1;
+      this.#imports[varname] = String(pp);
       return;
     }
 
@@ -319,8 +322,7 @@ class BT {
           content += item.map((thing) => {
             if (
               typeof thing === "string" &&
-              (thing.includes("\n") || thing.includes(",") ||
-                thing.includes('"'))
+              (thing.includes("\n") || thing.includes(","))
             ) return `"${thing}"`;
             return thing;
           }).join(",") + (",".repeat(max - item.length)) + "\n";
@@ -383,9 +385,8 @@ class BT {
       ) {
         let call = node.literal;
         if (node.literal.includes(".")) {
-          const [i, vn] = node.literal.slice(1).split(".");
-  
-          node.literal = this.get(vn, i);
+          const [i, vn] = node.literal.slice(1).split(".");  
+          node.literal = this.get(vn, this.#imports[this.get(i, prefix)]);
         } else {
           node.literal = this.get(node.literal.slice(1), prefix)
         }
@@ -475,8 +476,17 @@ class BT {
       this.pushState(["0", "SET", varname, "0"]);
     } else if (node.call) {
       let call = node.call.literal.slice(1);
+
       const a = await this._compilea(node.args, prefix);
-      if (this.#functions[this.get(call, prefix)] === void 0) {
+
+      if (call.includes(".")) {
+        const [i, vn] = call.split("."); 
+        console.log(i, vn)
+        call = this.get(vn, this.#imports[this.get(i, prefix)]);
+      } else {
+        call = this.get(call, prefix)
+      }
+      if (this.#functions[call] === void 0) {
         if (call === 'floor') {
           this.pushState(["0", "FLOOR", varname, a[0]]);
           return `$${varname}`
@@ -506,14 +516,6 @@ class BT {
           return `$${varname}`
         }
         throw Error("Unknown function "+call)
-      }
-
-      if (call.includes(".")) {
-        const [i, vn] = call.split(".");
-
-        call = this.get(vn, i);
-      } else {
-        call = this.get(call, prefix)
       }
 
       for (

@@ -1,3 +1,4 @@
 include "functions.bt"
 
-sansText $functions.main
+sansText $functions.main("A", "B")
+sansText $functions.a

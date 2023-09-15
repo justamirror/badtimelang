@@ -1,0 +1,18 @@
+0,JMPREL,6,
+0,SansText,$1_main_a,
+0,SET,RETURN_1_main,$1_main_b
+0,JMPABS,$JB_1_main,
+0,SET,RETURN_1_main,0
+0,JMPABS,$JB_1_main,
+0,SET,1_a,1
+0,SET,1_main_a,HEY NE"RD
+0,SET,1_main_b,BERD
+0,SET,JB_1_main,12
+0,JMPABS,2,
+0,SansText,$RETURN_1_main,
+0,SET,1_main_a,A
+0,SET,1_main_b,B
+0,SET,JB_1_main,17
+0,JMPABS,2,
+0,SansText,$RETURN_1_main,
+0,SansText,$1_a,
