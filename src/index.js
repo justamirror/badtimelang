@@ -49,7 +49,7 @@ class BT {
   prefix;
   #wc;
   #functions;
-  #imports;
+  #accessors;
   #stack;
   #scopes;
   #linenumber;
@@ -57,7 +57,7 @@ class BT {
     this.#state = [];
     this.prefix = 0;
     this.#functions = {};
-    this.#imports = {};
+    this.#accessors = {};
     this.#stack = [];
     this.#wc = 0;
     this.debug = debug;
@@ -65,9 +65,11 @@ class BT {
     this.#linenumber = 0;
   }
   get(variable, scope, set = false) {
+    scope = String(scope)
     if (this.#scopes[scope] === void 0) {
       this.#scopes[scope] = {}
     }
+    let prefix = scope.split('_', 1)[0]
     if (set) {
       if (this.#scopes[scope][variable] === void 0) {
         this.#scopes[scope][variable] = SCOPE_TYPES.AUTO;
@@ -78,6 +80,7 @@ class BT {
 
     for (let i = keys.indexOf(scope); i >= 0; i--) {
       if (keys[i].startsWith(scope+"_")) continue;
+      if (!keys[i].startsWith(prefix) && keys[i] !== prefix) continue;
       const thing = values[i][variable];
       if (thing === void 0 || thing === SCOPE_TYPES.NONLOCAL) {
         continue;
@@ -201,9 +204,9 @@ class BT {
         filename = path.resolve(path.dirname(this.filename), filename)
       }
       const varname = v(path.basename(filename, ".bt"), prefix, true);
-      let pp = this.prefix + 1;
+      let pp = this.prefix;
       await this.compile(textDecoder.decode(await Deno.readFile(filename)));
-      this.#imports[varname] = String(pp);
+      this.#accessors[varname] = String(pp);
       return;
     }
 
@@ -378,27 +381,26 @@ class BT {
       }
       return value;
     }
-    if (node.literal) {
-      if (
-        node.literal.startsWith("$")
-      ) {
-        let call = node.literal;
-        if (node.literal.includes(".")) {
-          const [i, vn] = node.literal.slice(1).split(".");  
-          node.literal = this.get(vn, this.#imports[this.get(i, prefix)]);
-        } else {
-          node.literal = this.get(node.literal.slice(1), prefix)
-        }
-        node.literal = `$${node.literal}`;
-        if (this.#functions[node.literal.slice(1)] === void 0 && ['floor','degrees','radians','sin','cosin','angle','random'].includes(call.slice(1))) {
-          return "Builtin func "+(call.slice(1))
-        }
+    if (node.variable) {
+      let call = node.variable[node.variable.length-1];
+      let current = false;
+      for (let ind = 0; ind < node.variable.length; ind++) {
+        const [vn] = [node.variable[ind]]; 
+        current = this.get(vn, current ? this.#accessors[current] : prefix);
       }
+      node.literal = current
+      node.literal = `$${node.literal}`;
+      if (this.#functions[node.literal.slice(1)] === void 0 && ['floor','degrees','radians','sin','cosin','angle','random'].includes(call.slice(1))) {
+        return "Builtin func "+call
+      }
+
       if (
-        node.literal.startsWith("$") && this.#functions[node.literal.slice(1)]
+        this.#functions[node.literal.slice(1)]
       ) {
         return this.#functions[node.literal.slice(1)].asString;
       }
+    }
+    if (node.literal) {
       return node.literal;
     }
     const varname = `MATH_${this.prefix++}`;
@@ -480,7 +482,7 @@ class BT {
 
       if (call.includes(".")) {
         const [i, vn] = call.split("."); 
-        call = this.get(vn, this.#imports[this.get(i, prefix)]);
+        call = this.get(vn, this.#accessors[this.get(i, prefix)]);
       } else {
         call = this.get(call, prefix)
       }

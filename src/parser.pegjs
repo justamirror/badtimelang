@@ -24,8 +24,8 @@ Comparison
 
 
 Variable "variable"
-  = _ [$]Word { return {
-  literal: text()
+  = _ [$]props:(Word([.]Word)*) { return {
+  variable: [props[0]].concat(props[1].map(item => item[1]))
   } }
 
 Expression
@@ -97,7 +97,7 @@ ReturnStatment
       args: [vari]
     }
   }
-  / "include" _ name:(Word/String) {
+  / "include" _ name:(Word2/String) {
 	return {
       keyword: "include",
       args: [name]
@@ -137,4 +137,5 @@ Factor
 _ "whitespace"
   = [ \t\r]*
 
-Word = [a-zA-Z_-][a-zA-Z_\-0-9.]* { return text() }
+Word = [a-zA-Z_-][a-zA-Z_\-0-9]* { return text() }
+Word2 = [a-zA-Z_-][a-zA-Z_\-0-9.]* { return text() }

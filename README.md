@@ -24,8 +24,6 @@ Check [further documentation](docs/README.md) for more details.
 
 ## TODO
 
-* Public variables
-* Multiple layers of variable access `a.b.c`
 * Public / Private distinction (export keyword, maybe)
 * Modules folder
 * Objects and Arrays

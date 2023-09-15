@@ -5,4 +5,4 @@ end
 
 set a to 1
 
-sansText $main("HEY NE\"RD", "BERD") 
+include double.bt
